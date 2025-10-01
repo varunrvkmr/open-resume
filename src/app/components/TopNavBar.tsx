@@ -31,6 +31,12 @@ export const TopNavBar = () => {
           aria-label="Site Nav Bar"
           className="flex items-center gap-2 text-sm font-medium"
         >
+          <a
+            href={process.env.NODE_ENV === 'production' ? 'https://jobtrackr.ai' : 'http://localhost:3000'}
+            className="rounded-md px-1.5 py-2 text-blue-600 hover:bg-blue-50 focus-visible:bg-blue-50 lg:px-4 font-semibold"
+          >
+            ← Back to JobTrackr
+          </a>
           {[
             ["/resume-builder", "Builder"],
             ["/resume-parser", "Parser"],
