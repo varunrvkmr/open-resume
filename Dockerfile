@@ -1,5 +1,7 @@
 FROM node:18-alpine as production
 WORKDIR /app
+# Install wget for health checks
+RUN apk add --no-cache wget
 COPY . .
 RUN npm install --production
 RUN npm run build
@@ -9,6 +11,8 @@ CMD ["npm", "start"]
 
 FROM node:18-alpine as development
 WORKDIR /app
+# Install wget for health checks
+RUN apk add --no-cache wget
 COPY . .
 RUN npm install --include=dev
 CMD ["npm", "run", "dev"]
