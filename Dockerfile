@@ -2,9 +2,11 @@ FROM node:18-alpine as production
 WORKDIR /app
 # Install wget for health checks
 RUN apk add --no-cache wget
+COPY package*.json ./
+RUN npm ci
 COPY . .
-RUN npm install --production
 RUN npm run build
+RUN npm ci --only=production && npm cache clean --force
 
 EXPOSE 3000
 CMD ["npm", "start"]
