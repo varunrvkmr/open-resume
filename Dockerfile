@@ -9,7 +9,7 @@ RUN npm run build
 RUN npm ci --only=production && npm cache clean --force
 
 EXPOSE 3000
-CMD ["npm", "start"]
+CMD ["node", ".next/standalone/server.js"]
 
 FROM node:18-alpine as development
 WORKDIR /app
