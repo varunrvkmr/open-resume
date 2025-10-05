@@ -1,3 +1,4 @@
+// openresume/src/app/api/jobs/[jobId]/tailored-resume/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(
@@ -7,31 +8,29 @@ export async function POST(
   try {
     const jobId = params.jobId;
     const body = await request.json();
+    const { userEmail } = body;
     
-    // TODO: Implement tailored resume creation logic
-    // 1. Fetch job details from database
-    // 2. Create a new resume record linked to this job
-    // 3. Update the job record to mark has_tailored_resume = true
+    if (!userEmail) {
+      return NextResponse.json({ error: 'userEmail is required' }, { status: 400 });
+    }
     
-    // Mock implementation
-    const tailoredResumeId = Date.now();
-    
-    // TODO: Replace with actual database operations
-    // await db.query(
-    //   'INSERT INTO resumes (job_id, user_id, created_at) VALUES (?, ?, NOW())',
-    //   [jobId, userId]
-    // );
-    // 
-    // await db.query(
-    //   'UPDATE jobs SET has_tailored_resume = true, tailored_resume_id = ? WHERE id = ? AND user_id = ?',
-    //   [tailoredResumeId, jobId, userId]
-    // );
-    
-    return NextResponse.json({
-      success: true,
-      tailored_resume_id: tailoredResumeId,
-      job_id: jobId
+    // Call your backend API
+    const response = await fetch(`${process.env.BACKEND_URL}/api/openresume/jobs/${jobId}/tailored-resume`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ userEmail })
     });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Backend API error:', response.status, errorText);
+      throw new Error(`Backend API error: ${response.status} - ${errorText}`);
+    }
+
+    const result = await response.json();
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error creating tailored resume:', error);
     return NextResponse.json(
@@ -46,23 +45,26 @@ export async function GET(
   { params }: { params: { jobId: string } }
 ) {
   try {
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader) {
+      return NextResponse.json({ error: 'Authorization required' }, { status: 401 });
+    }
+
     const jobId = params.jobId;
     
-    // TODO: Fetch tailored resume for this job
-    // const resume = await db.query(
-    //   'SELECT * FROM resumes WHERE job_id = ? AND user_id = ?',
-    //   [jobId, userId]
-    // );
-    
-    // Mock implementation
-    const resume = {
-      id: 1,
-      job_id: jobId,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    
-    return NextResponse.json(resume);
+    // Call your backend API
+    const response = await fetch(`${process.env.BACKEND_URL}/api/openresume/jobs/${jobId}/tailored-resume`, {
+      headers: {
+        'Authorization': authHeader
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch tailored resume');
+    }
+
+    const result = await response.json();
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error fetching tailored resume:', error);
     return NextResponse.json(

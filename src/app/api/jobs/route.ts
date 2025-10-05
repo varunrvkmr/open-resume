@@ -1,49 +1,62 @@
+// openresume/src/app/api/jobs/route.ts
+// openresume/src/app/api/jobs/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-
-// Mock data - replace with actual database calls
-const mockJobs = [
-  {
-    id: 1,
-    title: "Senior Software Engineer",
-    company: "Tech Corp",
-    location: "San Francisco, CA",
-    status: "Applied",
-    date_applied: "2024-01-15",
-    has_tailored_resume: true,
-    tailored_resume_id: 1
-  },
-  {
-    id: 2,
-    title: "Full Stack Developer",
-    company: "StartupXYZ",
-    location: "Remote",
-    status: "Interview",
-    date_applied: "2024-01-10",
-    has_tailored_resume: false
-  },
-  {
-    id: 3,
-    title: "Frontend Engineer",
-    company: "Design Co",
-    location: "New York, NY",
-    status: "Applied",
-    date_applied: "2024-01-08",
-    has_tailored_resume: true,
-    tailored_resume_id: 2
-  }
-];
 
 export async function GET(request: NextRequest) {
   try {
-    // TODO: Replace with actual database query
-    // const jobs = await db.query('SELECT * FROM jobs WHERE user_id = ?', [userId]);
+    // Get user email from query parameters
+    const { searchParams } = new URL(request.url);
+    const userEmail = searchParams.get('userEmail');
     
-    // For now, return mock data
-    return NextResponse.json(mockJobs);
+    console.log('🔍 OpenResume API - userEmail:', userEmail);
+    
+    if (!userEmail) {
+      console.log('❌ No userEmail provided');
+      return NextResponse.json({ error: 'userEmail parameter is required' }, { status: 400 });
+    }
+
+    // Get backend URL from environment
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:5050';
+    console.log('🔧 Backend URL:', backendUrl);
+    
+    const fullUrl = `${backendUrl}/api/openresume/jobs?userEmail=${encodeURIComponent(userEmail)}`;
+    console.log('📡 Calling backend:', fullUrl);
+    
+    // Call your backend API
+    const response = await fetch(fullUrl, {
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    console.log(`📡 Backend response status: ${response.status}`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Backend API error:', response.status, errorText);
+      throw new Error(`Backend API error: ${response.status} - ${errorText}`);
+    }
+
+    const jobs = await response.json();
+    console.log(`✅ Received ${jobs.length} jobs from backend`);
+    
+    // Map backend fields to expected UI fields with safe defaults
+    const mappedJobs = jobs.map((job: any) => ({
+      id: job.id,
+      title: job.title || 'Unknown Position',
+      company: job.company || 'Unknown Company',
+      location: job.location || 'Unknown Location',
+      status: job.status || 'Unknown',
+      date_applied: job.date_applied || job.applied_date || null,
+      has_tailored_resume: Boolean(job.has_tailored_resume),
+      tailored_resume_id: job.tailored_resume_id || null
+    }));
+    
+    return NextResponse.json(mappedJobs);
   } catch (error) {
-    console.error('Error fetching jobs:', error);
+    console.error('❌ Error in OpenResume API:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch jobs' },
+      { error: 'Failed to fetch jobs', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
@@ -51,21 +64,29 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader) {
+      return NextResponse.json({ error: 'Authorization required' }, { status: 401 });
+    }
+
     const body = await request.json();
     
-    // TODO: Implement job creation logic
-    // const newJob = await db.query(
-    //   'INSERT INTO jobs (title, company, location, status, date_applied, user_id) VALUES (?, ?, ?, ?, ?, ?)',
-    //   [body.title, body.company, body.location, body.status, body.date_applied, userId]
-    // );
-    
-    const newJob = {
-      id: Date.now(),
-      ...body,
-      has_tailored_resume: false
-    };
-    
-    return NextResponse.json(newJob, { status: 201 });
+    // Call your backend API
+    const response = await fetch(`${process.env.BACKEND_URL}/api/openresume/jobs`, {
+      method: 'POST',
+      headers: {
+        'Authorization': authHeader,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to create job in backend');
+    }
+
+    const result = await response.json();
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error creating job:', error);
     return NextResponse.json(
