@@ -5,7 +5,8 @@ const nextConfig = {
   // building the app. Since pdfjs-dist is only used on client side, we disable
   // the canvas package for webpack
   // https://github.com/mozilla/pdf.js/issues/16214
-  output: 'standalone',
+  // Temporarily disable standalone output to fix build issues
+  // output: 'standalone',
   webpack: (config) => {
     // Setting resolve.alias to false tells webpack to ignore a module
     // https://webpack.js.org/configuration/resolve/#resolvealias
