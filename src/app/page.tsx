@@ -110,6 +110,7 @@ export default function Home() {
 
       const jobsData = await response.json()
       console.log("✅ Jobs fetched successfully:", jobsData.length, "jobs")
+      console.log("📋 Sample job data:", jobsData.slice(0, 2)) // Log first 2 jobs for debugging
       setJobs(jobsData)
     } catch (err) {
       console.error("❌ Error fetching jobs:", err)
@@ -168,6 +169,12 @@ export default function Home() {
           job.id === jobId ? { ...job, has_tailored_resume: true, tailored_resume_id: result.tailored_resume_id } : job,
         ),
       )
+
+      // Navigate to resume builder with the tailored resume
+      const userInfoEncoded = encodeURIComponent(JSON.stringify(userInfo))
+      const resumeBuilderUrl = `/resume-builder?resumeId=${result.tailored_resume_id}&jobId=${jobId}&userInfo=${userInfoEncoded}`
+      console.log("🔗 Navigating to resume builder:", resumeBuilderUrl)
+      window.location.href = resumeBuilderUrl
     } catch (err) {
       console.error("❌ Error creating tailored resume:", err)
       setError("Failed to create tailored resume")
@@ -318,8 +325,12 @@ export default function Home() {
                   <div className="text-right text-sm font-medium">
                     {job.has_tailored_resume ? (
                       <Link
-                        href={`/resume-builder?resumeId=${job.tailored_resume_id}&jobId=${job.id}`}
+                        href={`/resume-builder?resumeId=${job.tailored_resume_id}&jobId=${job.id}&userInfo=${encodeURIComponent(JSON.stringify(userInfo))}`}
                         className="text-blue-600 hover:text-blue-900"
+                        onClick={() => {
+                          console.log('🔗 Edit Resume clicked for job:', job.id, 'tailored_resume_id:', job.tailored_resume_id);
+                          console.log('🔗 Generated URL:', `/resume-builder?resumeId=${job.tailored_resume_id}&jobId=${job.id}&userInfo=${encodeURIComponent(JSON.stringify(userInfo))}`);
+                        }}
                       >
                         Edit Resume
                       </Link>

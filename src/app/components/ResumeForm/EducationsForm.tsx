@@ -16,13 +16,16 @@ import {
 export const EducationsForm = () => {
   const educations = useAppSelector(selectEducations);
   const dispatch = useAppDispatch();
-  const showDelete = educations.length > 1;
+  
+  // Add fallback protection for undefined educations
+  const safeEducations = educations || [];
+  const showDelete = safeEducations.length > 1;
   const form = "educations";
   const showBulletPoints = useAppSelector(selectShowBulletPoints(form));
 
   return (
     <Form form={form} addButtonText="Add School">
-      {educations.map(({ school, degree, gpa, date, descriptions }, idx) => {
+      {safeEducations.map(({ school, degree, gpa, date, descriptions }, idx) => {
         const handleEducationChange = (
           ...[
             field,
@@ -37,7 +40,7 @@ export const EducationsForm = () => {
         };
 
         const showMoveUp = idx !== 0;
-        const showMoveDown = idx !== educations.length - 1;
+        const showMoveDown = idx !== safeEducations.length - 1;
 
         return (
           <FormSection

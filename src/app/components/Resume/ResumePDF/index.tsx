@@ -37,7 +37,24 @@ export const ResumePDF = ({
 }) => {
   const { profile, workExperiences, educations, projects, skills, custom } =
     resume;
-  const { name } = profile;
+  
+  // Add defensive programming to handle undefined properties
+  const safeProfile = profile || {
+    name: "",
+    email: "",
+    phone: "",
+    url: "",
+    summary: "",
+    location: ""
+  };
+  
+  const safeWorkExperiences = workExperiences || [];
+  const safeEducations = educations || [];
+  const safeProjects = projects || [];
+  const safeSkills = skills || { featuredSkills: [], descriptions: [] };
+  const safeCustom = custom || { descriptions: [] };
+  
+  const { name } = safeProfile;
   const {
     fontFamily,
     fontSize,
@@ -55,14 +72,14 @@ export const ResumePDF = ({
     workExperiences: () => (
       <ResumePDFWorkExperience
         heading={formToHeading["workExperiences"]}
-        workExperiences={workExperiences}
+        workExperiences={safeWorkExperiences}
         themeColor={themeColor}
       />
     ),
     educations: () => (
       <ResumePDFEducation
         heading={formToHeading["educations"]}
-        educations={educations}
+        educations={safeEducations}
         themeColor={themeColor}
         showBulletPoints={showBulletPoints["educations"]}
       />
@@ -70,14 +87,14 @@ export const ResumePDF = ({
     projects: () => (
       <ResumePDFProject
         heading={formToHeading["projects"]}
-        projects={projects}
+        projects={safeProjects}
         themeColor={themeColor}
       />
     ),
     skills: () => (
       <ResumePDFSkills
         heading={formToHeading["skills"]}
-        skills={skills}
+        skills={safeSkills}
         themeColor={themeColor}
         showBulletPoints={showBulletPoints["skills"]}
       />
@@ -85,7 +102,7 @@ export const ResumePDF = ({
     custom: () => (
       <ResumePDFCustom
         heading={formToHeading["custom"]}
-        custom={custom}
+        custom={safeCustom}
         themeColor={themeColor}
         showBulletPoints={showBulletPoints["custom"]}
       />
@@ -120,7 +137,7 @@ export const ResumePDF = ({
             }}
           >
             <ResumePDFProfile
-              profile={profile}
+              profile={safeProfile}
               themeColor={themeColor}
               isPDF={isPDF}
             />

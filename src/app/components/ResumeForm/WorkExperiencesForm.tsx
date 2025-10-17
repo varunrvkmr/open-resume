@@ -15,11 +15,13 @@ export const WorkExperiencesForm = () => {
   const workExperiences = useAppSelector(selectWorkExperiences);
   const dispatch = useAppDispatch();
 
-  const showDelete = workExperiences.length > 1;
+  // Add fallback protection for undefined workExperiences
+  const safeWorkExperiences = workExperiences || [];
+  const showDelete = safeWorkExperiences.length > 1;
 
   return (
     <Form form="workExperiences" addButtonText="Add Job">
-      {workExperiences.map(({ company, jobTitle, date, descriptions }, idx) => {
+      {safeWorkExperiences.map(({ company, jobTitle, date, descriptions }, idx) => {
         const handleWorkExperienceChange = (
           ...[
             field,
@@ -32,7 +34,7 @@ export const WorkExperiencesForm = () => {
           dispatch(changeWorkExperiences({ idx, field, value } as any));
         };
         const showMoveUp = idx !== 0;
-        const showMoveDown = idx !== workExperiences.length - 1;
+        const showMoveDown = idx !== safeWorkExperiences.length - 1;
 
         return (
           <FormSection

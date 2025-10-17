@@ -11,11 +11,14 @@ import type { ResumeProject } from "lib/redux/types";
 export const ProjectsForm = () => {
   const projects = useAppSelector(selectProjects);
   const dispatch = useAppDispatch();
-  const showDelete = projects.length > 1;
+  
+  // Add fallback protection for undefined projects
+  const safeProjects = projects || [];
+  const showDelete = safeProjects.length > 1;
 
   return (
     <Form form="projects" addButtonText="Add Project">
-      {projects.map(({ project, date, descriptions }, idx) => {
+      {safeProjects.map(({ project, date, descriptions }, idx) => {
         const handleProjectChange = (
           ...[
             field,
@@ -25,7 +28,7 @@ export const ProjectsForm = () => {
           dispatch(changeProjects({ idx, field, value } as any));
         };
         const showMoveUp = idx !== 0;
-        const showMoveDown = idx !== projects.length - 1;
+        const showMoveDown = idx !== safeProjects.length - 1;
 
         return (
           <FormSection

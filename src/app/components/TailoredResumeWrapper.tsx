@@ -2,7 +2,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "lib/redux/store";
-import { setResume } from "lib/redux/resumeSlice";
+import { setResume, ensureProfileExists } from "lib/redux/resumeSlice";
+import { useSaveStateToLocalStorageOnChange } from "lib/redux/hooks";
 
 interface TailoredResumeWrapperProps {
   children: React.ReactNode;
@@ -14,10 +15,37 @@ export const TailoredResumeWrapper = ({ children }: TailoredResumeWrapperProps) 
   const [jobId, setJobId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [savingAsMaster, setSavingAsMaster] = useState(false);
+  const [savedAsMaster, setSavedAsMaster] = useState(false);
   const [loading, setLoading] = useState(true);
   
   const resume = useSelector((state: RootState) => state.resume);
   const dispatch = useDispatch();
+
+  // Conditionally enable/disable localStorage auto-save
+  // Disable auto-save when in tailored mode to prevent overwriting master resume
+  useEffect(() => {
+    if (isTailoredMode) {
+      console.log('🚫 Disabling localStorage auto-save for tailored resume mode');
+      // We'll override the localStorage save behavior by preventing it
+      const originalSetItem = localStorage.setItem;
+      localStorage.setItem = function(key, value) {
+        // Block resume data from being saved to localStorage in tailored mode
+        if (key === 'resume' || key.includes('resume')) {
+          console.log('🚫 Blocked localStorage save for resume data in tailored mode');
+          return;
+        }
+        // Allow other localStorage operations
+        return originalSetItem.call(this, key, value);
+      };
+      
+      // Cleanup function to restore original behavior
+      return () => {
+        localStorage.setItem = originalSetItem;
+        console.log('✅ Restored localStorage auto-save behavior');
+      };
+    }
+  }, [isTailoredMode]);
 
   const loadMasterResume = useCallback(async (user: any) => {
     try {
@@ -34,7 +62,8 @@ export const TailoredResumeWrapper = ({ children }: TailoredResumeWrapperProps) 
         console.log('✅ Master resume loaded:', result);
         
         if (result.resume_data) {
-          dispatch(setResume(result.resume_data));
+          const safeData = ensureProfileExists(result.resume_data);
+          dispatch(setResume(safeData));
         }
       }
     } catch (error) {
@@ -59,7 +88,8 @@ export const TailoredResumeWrapper = ({ children }: TailoredResumeWrapperProps) 
         
         // Load the tailored resume data into Redux store
         if (result.resume_data) {
-          dispatch(setResume(result.resume_data));
+          const safeData = ensureProfileExists(result.resume_data);
+          dispatch(setResume(safeData));
         }
       } else if (response.status === 404) {
         console.log('📝 No tailored resume found, starting with master resume');
@@ -77,13 +107,59 @@ export const TailoredResumeWrapper = ({ children }: TailoredResumeWrapperProps) 
     }
   }, [dispatch, loadMasterResume]);
 
+  const loadResumeById = useCallback(async (user: any, resumeId: string) => {
+    try {
+      setLoading(true);
+      console.log('📖 Loading resume by ID:', resumeId);
+
+      const response = await fetch(`/api/resume-versions/${resumeId}?userEmail=${encodeURIComponent(user.email)}`, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Resume loaded by ID:', result);
+        
+        // Load the resume data into Redux store
+        if (result.resume_data) {
+          const safeData = ensureProfileExists(result.resume_data);
+          dispatch(setResume(safeData));
+        }
+      } else if (response.status === 404) {
+        console.log('📝 No resume found with ID, starting with master resume');
+        // Load master resume as fallback
+        await loadMasterResume(user);
+      } else {
+        throw new Error('Failed to load resume by ID');
+      }
+    } catch (error) {
+      console.error('❌ Error loading resume by ID:', error);
+      // Fallback to master resume
+      await loadMasterResume(user);
+    } finally {
+      setLoading(false);
+    }
+  }, [dispatch, loadMasterResume]);
+
   useEffect(() => {
     // Check if we're in tailored mode
     const urlParams = new URLSearchParams(window.location.search);
     const resumeId = urlParams.get('resumeId');
     const jobIdParam = urlParams.get('jobId');
     
-    setIsTailoredMode(!!resumeId && !!jobIdParam);
+    console.log('🔍 TailoredResumeWrapper - URL params:', {
+      resumeId,
+      jobIdParam,
+      fullUrl: window.location.href,
+      search: window.location.search
+    });
+    
+    // Show tailored mode if we have a resumeId AND a jobId
+    // This ensures we only enter tailored mode when we have both pieces of information
+    const shouldBeTailoredMode = !!(resumeId && jobIdParam);
+    setIsTailoredMode(shouldBeTailoredMode);
     setJobId(jobIdParam);
 
     // Get user info from localStorage or URL
@@ -116,16 +192,26 @@ export const TailoredResumeWrapper = ({ children }: TailoredResumeWrapperProps) 
     setUserInfo(user);
 
     // Load tailored resume data if in tailored mode
-    if (isTailoredMode && user && jobIdParam) {
+    if (shouldBeTailoredMode && user && jobIdParam) {
+      console.log('📝 Loading tailored resume for job:', jobIdParam);
       loadTailoredResume(user, jobIdParam);
+    } else if (resumeId && !jobIdParam && user) {
+      // If we have resumeId but no jobId, try to load the resume by ID
+      console.log('📝 Loading resume by ID:', resumeId);
+      loadResumeById(user, resumeId);
     } else {
       setLoading(false);
     }
-  }, [isTailoredMode, loadTailoredResume]);
+  }, [loadTailoredResume, loadMasterResume, loadResumeById]);
 
   const saveTailoredResume = async () => {
-    if (!userInfo?.email || !jobId) {
+    if (!userInfo?.email) {
       alert('Please log in to save your tailored resume');
+      return;
+    }
+    
+    if (!jobId) {
+      alert('No job ID available. Use "Save as Master" instead.');
       return;
     }
 
@@ -167,6 +253,67 @@ export const TailoredResumeWrapper = ({ children }: TailoredResumeWrapperProps) 
     }
   };
 
+  const saveAsMasterResume = async () => {
+    if (!userInfo?.email) {
+      alert('Please log in to save as master resume');
+      return;
+    }
+
+    try {
+      setSavingAsMaster(true);
+      console.log('💾 Saving current resume as master resume...');
+
+      // Transform Redux format to OpenResume format for API
+      const profile = resume.profile || {};
+      const openResumeData = {
+        basics: {
+          name: profile.name || "",
+          email: profile.email || "",
+          phone: profile.phone || "",
+          url: profile.url || "",
+          summary: profile.summary || "",
+          location: profile.location || ""
+        },
+        work: resume.workExperiences,
+        education: resume.educations,
+        projects: resume.projects,
+        skills: resume.skills,
+        custom: resume.custom
+      };
+
+      const response = await fetch('/api/master-resume', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userEmail: userInfo.email,
+          resumeData: openResumeData
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to save as master resume');
+      }
+
+      const result = await response.json();
+      console.log('✅ Saved as master resume:', result);
+      setSavedAsMaster(true);
+      
+      // Show success message
+      setTimeout(() => {
+        setSavedAsMaster(false);
+      }, 3000);
+
+    } catch (error) {
+      console.error('❌ Error saving as master resume:', error);
+      alert(`Failed to save as master resume: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setSavingAsMaster(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -198,9 +345,25 @@ export const TailoredResumeWrapper = ({ children }: TailoredResumeWrapperProps) 
           >
             {saving ? 'Saving...' : saved ? '✓ Saved!' : 'Save Tailored Resume'}
           </button>
+          <button
+            onClick={saveAsMasterResume}
+            disabled={savingAsMaster}
+            className={`px-4 py-1 rounded-md text-sm font-medium ${
+              savingAsMaster 
+                ? 'bg-purple-400 cursor-not-allowed' 
+                : savedAsMaster 
+                  ? 'bg-green-500' 
+                  : 'bg-purple-600 text-white hover:bg-purple-700'
+            }`}
+          >
+            {savingAsMaster ? 'Saving...' : savedAsMaster ? '✓ Saved as Master!' : 'Save as Master'}
+          </button>
         </div>
         <p className="text-sm text-blue-100 mt-1">
           This resume is tailored specifically for this job application
+        </p>
+        <p className="text-xs text-blue-200 mt-1">
+          🔒 Auto-save disabled to protect your master resume
         </p>
       </div>
       

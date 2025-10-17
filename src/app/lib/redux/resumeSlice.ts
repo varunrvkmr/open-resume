@@ -63,6 +63,19 @@ export const initialResumeState: Resume = {
   custom: initialCustom,
 };
 
+// Ensure profile is never undefined by adding a safeguard
+export const ensureProfileExists = (resume: Resume): Resume => {
+  return {
+    ...resume,
+    profile: resume.profile || initialProfile,
+    workExperiences: resume.workExperiences || [initialWorkExperience],
+    educations: resume.educations || [initialEducation],
+    projects: resume.projects || [initialProject],
+    skills: resume.skills || initialSkills,
+    custom: resume.custom || initialCustom,
+  };
+};
+
 // Keep the field & value type in sync with CreateHandleChangeArgsWithDescriptions (components\ResumeForm\types.ts)
 export type CreateChangeActionWithDescriptions<T> = {
   idx: number;
@@ -195,7 +208,7 @@ export const resumeSlice = createSlice({
       }
     },
     setResume: (draft, action: PayloadAction<Resume>) => {
-      return action.payload;
+      return ensureProfileExists(action.payload);
     },
   },
 });

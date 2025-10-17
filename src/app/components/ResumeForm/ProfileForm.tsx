@@ -3,15 +3,36 @@ import { Input, Textarea } from "components/ResumeForm/Form/InputGroup";
 import { useAppDispatch, useAppSelector } from "lib/redux/hooks";
 import { changeProfile, selectProfile } from "lib/redux/resumeSlice";
 import { ResumeProfile } from "lib/redux/types";
+import { useEffect } from "react";
 
 export const ProfileForm = () => {
   const profile = useAppSelector(selectProfile);
   const dispatch = useAppDispatch();
-  const { name, email, phone, url, summary, location } = profile;
+  
+  // Debug logging
+  console.log('🔍 ProfileForm - profile from Redux:', profile);
+  console.log('🔍 ProfileForm - profile type:', typeof profile);
+  console.log('🔍 ProfileForm - profile is undefined:', profile === undefined);
+  
+  // Add fallback protection for undefined profile
+  const { name, email, phone, url, summary, location } = profile || {
+    name: "",
+    email: "",
+    phone: "",
+    url: "",
+    summary: "",
+    location: ""
+  };
 
   const handleProfileChange = (field: keyof ResumeProfile, value: string) => {
+    console.log(`📝 ProfileForm - Updating ${field}:`, value);
     dispatch(changeProfile({ field, value }));
   };
+
+  // Monitor profile changes
+  useEffect(() => {
+    console.log('🔍 ProfileForm - Profile changed:', profile);
+  }, [profile]);
 
   return (
     <BaseForm>

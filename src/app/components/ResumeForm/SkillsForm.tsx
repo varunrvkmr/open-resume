@@ -16,7 +16,10 @@ import {
 export const SkillsForm = () => {
   const skills = useAppSelector(selectSkills);
   const dispatch = useAppDispatch();
-  const { featuredSkills, descriptions } = skills;
+  
+  // Add fallback protection for undefined skills
+  const safeSkills = skills || { featuredSkills: [], descriptions: [] };
+  const { featuredSkills, descriptions } = safeSkills;
   const form = "skills";
   const showBulletPoints = useAppSelector(selectShowBulletPoints(form));
   const themeColor = useAppSelector(selectThemeColor) || "#38bdf8";
