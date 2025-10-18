@@ -18,6 +18,7 @@ export const TailoredResumeWrapper = ({ children }: TailoredResumeWrapperProps) 
   const [savingAsMaster, setSavingAsMaster] = useState(false);
   const [savedAsMaster, setSavedAsMaster] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
   
   const resume = useSelector((state: RootState) => state.resume);
   const dispatch = useDispatch();
@@ -420,6 +421,72 @@ export const TailoredResumeWrapper = ({ children }: TailoredResumeWrapperProps) 
     }
   };
 
+  const deleteTailoredResume = async () => {
+    if (!userInfo?.email) {
+      alert('Please log in to delete tailored resume');
+      return;
+    }
+    
+    if (!jobId) {
+      alert('No job ID available for deletion');
+      return;
+    }
+
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this tailored resume? This action cannot be undone and you will be redirected back to the job list."
+    );
+    
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setDeleting(true);
+      console.log('🗑️ Deleting tailored resume for job:', jobId);
+
+      const response = await fetch(
+        `/api/tailored-resume?userEmail=${encodeURIComponent(userInfo.email)}&jobId=${jobId}`,
+        {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userEmail: userInfo.email,
+          jobId: jobId,
+        }),
+      });
+
+      if (!response.ok) {
+        let errorData = {};
+        try {
+          const text = await response.text();
+          if (text) {
+            errorData = JSON.parse(text);
+          }
+        } catch (parseError) {
+          console.error('❌ Failed to parse error response:', parseError);
+          errorData = { error: `Server error (${response.status}): ${response.statusText}` };
+        }
+        throw new Error(errorData.error || 'Failed to delete tailored resume');
+      }
+
+      const result = await response.json();
+      console.log('✅ Tailored resume deleted:', result);
+      
+      // Redirect back to the job list
+      alert('Tailored resume deleted successfully! Redirecting to job list...');
+      window.location.href = '/';
+
+    } catch (error) {
+      console.error('❌ Error deleting tailored resume:', error);
+      alert(`Failed to delete tailored resume: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -463,6 +530,18 @@ export const TailoredResumeWrapper = ({ children }: TailoredResumeWrapperProps) 
             }`}
           >
             {savingAsMaster ? 'Saving...' : savedAsMaster ? '✓ Saved as Master!' : 'Save as Master'}
+          </button>
+          <button
+            onClick={deleteTailoredResume}
+            disabled={deleting}
+            className={`px-4 py-1 rounded-md text-sm font-medium ${
+              deleting 
+                ? 'bg-red-400 cursor-not-allowed' 
+                : 'bg-red-600 text-white hover:bg-red-700'
+            }`}
+            title="Delete this tailored resume"
+          >
+            {deleting ? 'Deleting...' : '🗑️ Delete'}
           </button>
         </div>
         <p className="text-sm text-blue-100 mt-1">

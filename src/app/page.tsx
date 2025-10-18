@@ -31,6 +31,7 @@ export default function Home() {
     has_prev: false
   })
   const [creatingResume, setCreatingResume] = useState<number | null>(null)
+  const [deletingResume, setDeletingResume] = useState<number | null>(null)
 
   useEffect(() => {
     // Try to get user info from URL parameters
@@ -201,6 +202,77 @@ export default function Home() {
     }
   }
 
+  const deleteTailoredResume = async (jobId: number) => {
+    try {
+      setDeletingResume(jobId)
+      console.log("🗑️ Deleting tailored resume for job:", jobId)
+
+      if (!userInfo?.email) {
+        console.error("❌ No user email found")
+        setError("Please log in to delete tailored resumes")
+        return
+      }
+
+      // Show confirmation dialog
+      const confirmed = window.confirm(
+        "Are you sure you want to delete this tailored resume? This action cannot be undone."
+      )
+      
+      if (!confirmed) {
+        return
+      }
+
+      const response = await fetch(
+        `/api/tailored-resume?userEmail=${encodeURIComponent(userInfo.email)}&jobId=${jobId}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            userEmail: userInfo.email,
+            jobId: jobId,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        let errorData = {}
+        try {
+          const text = await response.text()
+          if (text) {
+            errorData = JSON.parse(text)
+          }
+        } catch (parseError) {
+          console.error("❌ Failed to parse error response:", parseError)
+          errorData = { error: `Server error (${response.status}): ${response.statusText}` }
+        }
+        console.error("❌ API Error:", errorData)
+        setError(errorData.error || "Failed to delete tailored resume")
+        return
+      }
+
+      const result = await response.json()
+      console.log("✅ Tailored resume deleted:", result)
+
+      // Update local state
+      setJobs((prevJobs) =>
+        prevJobs.map((job) =>
+          job.id === jobId ? { ...job, has_tailored_resume: false, tailored_resume_id: undefined } : job,
+        ),
+      )
+
+      // Show success message
+      alert("Tailored resume deleted successfully!")
+
+    } catch (error) {
+      console.error("❌ Error deleting tailored resume:", error)
+      setError("Failed to delete tailored resume")
+    } finally {
+      setDeletingResume(null)
+    }
+  }
+
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
       case "applied":
@@ -342,16 +414,26 @@ export default function Home() {
                   </div>
                   <div className="text-right text-sm font-medium">
                     {job.has_tailored_resume ? (
-                      <Link
-                        href={`/resume-builder?resumeId=${job.tailored_resume_id}&jobId=${job.id}&userInfo=${encodeURIComponent(JSON.stringify(userInfo))}`}
-                        className="text-blue-600 hover:text-blue-900"
-                        onClick={() => {
-                          console.log('🔗 Edit Resume clicked for job:', job.id, 'tailored_resume_id:', job.tailored_resume_id);
-                          console.log('🔗 Generated URL:', `/resume-builder?resumeId=${job.tailored_resume_id}&jobId=${job.id}&userInfo=${encodeURIComponent(JSON.stringify(userInfo))}`);
-                        }}
-                      >
-                        Edit Resume
-                      </Link>
+                      <div className="flex items-center justify-end gap-2">
+                        <Link
+                          href={`/resume-builder?resumeId=${job.tailored_resume_id}&jobId=${job.id}&userInfo=${encodeURIComponent(JSON.stringify(userInfo))}`}
+                          className="text-blue-600 hover:text-blue-900"
+                          onClick={() => {
+                            console.log('🔗 Edit Resume clicked for job:', job.id, 'tailored_resume_id:', job.tailored_resume_id);
+                            console.log('🔗 Generated URL:', `/resume-builder?resumeId=${job.tailored_resume_id}&jobId=${job.id}&userInfo=${encodeURIComponent(JSON.stringify(userInfo))}`);
+                          }}
+                        >
+                          Edit Resume
+                        </Link>
+                        <button
+                          onClick={() => deleteTailoredResume(job.id)}
+                          disabled={deletingResume === job.id}
+                          className={`text-red-600 hover:text-red-900 text-xs ${deletingResume === job.id ? "opacity-50 cursor-not-allowed" : ""}`}
+                          title="Delete tailored resume"
+                        >
+                          {deletingResume === job.id ? "Deleting..." : "🗑️"}
+                        </button>
+                      </div>
                     ) : (
                       <button
                         onClick={() => createTailoredResume(job.id)}
