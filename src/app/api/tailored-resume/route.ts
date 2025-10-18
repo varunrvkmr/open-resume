@@ -1,16 +1,8 @@
 // openresume/src/app/api/tailored-resume/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { ResumeService } from '../../../lib/services/resumeService';
-import { testConnection } from '../../../lib/database/connection';
 
 export async function POST(request: NextRequest) {
   try {
-    // Test database connection
-    const isConnected = await testConnection();
-    if (!isConnected) {
-      throw new Error('Database connection failed');
-    }
-
     const body = await request.json();
     const { userEmail, resumeData, jobId } = body;
     
@@ -28,8 +20,26 @@ export async function POST(request: NextRequest) {
     
     console.log('💾 Saving tailored resume for job:', jobId, 'user:', userEmail);
     
-    // Use optimized service to save tailored resume
-    const result = await ResumeService.saveTailoredResume(userEmail, jobId, resumeData);
+    // Proxy request to backend
+    const backendUrl = process.env.BACKEND_URL || 'http://backend:5050';
+    const backendResponse = await fetch(`${backendUrl}/api/openresume/tailored-resume`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ userEmail, resumeData, jobId }),
+    });
+
+    if (!backendResponse.ok) {
+      const errorData = await backendResponse.json().catch(() => ({}));
+      console.error('❌ Backend API error:', errorData);
+      return NextResponse.json(
+        { error: 'Failed to save tailored resume', details: errorData },
+        { status: backendResponse.status }
+      );
+    }
+
+    const result = await backendResponse.json();
     console.log('✅ Tailored resume saved:', result);
     return NextResponse.json(result);
   } catch (error) {
@@ -43,12 +53,6 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    // Test database connection
-    const isConnected = await testConnection();
-    if (!isConnected) {
-      throw new Error('Database connection failed');
-    }
-
     const { searchParams } = new URL(request.url);
     const userEmail = searchParams.get('userEmail');
     const jobId = searchParams.get('jobId');
@@ -63,15 +67,29 @@ export async function GET(request: NextRequest) {
     
     console.log('📖 Fetching tailored resume for job:', jobId, 'user:', userEmail);
     
-    // Use optimized service to get tailored resume
-    const result = await ResumeService.getTailoredResume(userEmail, parseInt(jobId));
+    // Proxy request to backend
+    const backendUrl = process.env.BACKEND_URL || 'http://backend:5050';
+    const backendResponse = await fetch(`${backendUrl}/api/openresume/tailored-resume?userEmail=${encodeURIComponent(userEmail)}&jobId=${jobId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!backendResponse.ok) {
+      const errorData = await backendResponse.json().catch(() => ({}));
+      console.error('❌ Backend API error:', errorData);
+      return NextResponse.json(
+        { error: 'Failed to fetch tailored resume', details: errorData },
+        { status: backendResponse.status }
+      );
+    }
+
+    const result = await backendResponse.json();
     console.log('✅ Tailored resume fetched:', result);
     return NextResponse.json(result);
   } catch (error) {
     console.error('Error fetching tailored resume:', error);
-    if (error instanceof Error && error.message === 'No tailored resume found') {
-      return NextResponse.json({ error: 'No tailored resume found' }, { status: 404 });
-    }
     return NextResponse.json(
       { error: 'Failed to fetch tailored resume', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

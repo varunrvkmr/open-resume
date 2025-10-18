@@ -22,6 +22,14 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null)
   const [showAddJobForm, setShowAddJobForm] = useState(false)
   const [userInfo, setUserInfo] = useState<any>(null)
+  const [pagination, setPagination] = useState({
+    page: 1,
+    per_page: 10,
+    total: 0,
+    total_pages: 0,
+    has_next: false,
+    has_prev: false
+  })
   const [creatingResume, setCreatingResume] = useState<number | null>(null)
 
   useEffect(() => {
@@ -74,9 +82,9 @@ export default function Home() {
     }
   }, [])
 
-  const fetchJobs = async (user?: any) => {
+  const fetchJobs = async (user?: any, page: number = 1, perPage: number = 10) => {
     const userToUse = user || userInfo
-    console.log("📡 Fetching jobs for user:", userToUse)
+    console.log("📡 Fetching jobs for user:", userToUse, "page:", page, "perPage:", perPage)
     console.log("📡 User email being sent:", userToUse?.email)
 
     if (!userToUse?.email || userToUse.email === 'Loading...') {
@@ -89,8 +97,8 @@ export default function Home() {
     try {
       setLoading(true)
 
-      // Call your backend API with user email as identifier
-      const response = await fetch(`/api/jobs?userEmail=${encodeURIComponent(userToUse.email)}`, {
+      // Call your backend API with user email and pagination parameters
+      const response = await fetch(`/api/jobs?userEmail=${encodeURIComponent(userToUse.email)}&page=${page}&per_page=${perPage}`, {
         headers: {
           "Content-Type": "application/json",
         },
@@ -108,10 +116,20 @@ export default function Home() {
         throw new Error("Failed to fetch jobs")
       }
 
-      const jobsData = await response.json()
-      console.log("✅ Jobs fetched successfully:", jobsData.length, "jobs")
-      console.log("📋 Sample job data:", jobsData.slice(0, 2)) // Log first 2 jobs for debugging
-      setJobs(jobsData)
+      const responseData = await response.json()
+      console.log("✅ Jobs fetched successfully:", responseData.jobs?.length || 0, "jobs")
+      console.log("📋 Pagination info:", responseData.pagination)
+      console.log("📋 Sample job data:", responseData.jobs?.slice(0, 2)) // Log first 2 jobs for debugging
+      
+      setJobs(responseData.jobs || [])
+      setPagination(responseData.pagination || {
+        page: 1,
+        per_page: 10,
+        total: 0,
+        total_pages: 0,
+        has_next: false,
+        has_prev: false
+      })
     } catch (err) {
       console.error("❌ Error fetching jobs:", err)
       setError("Failed to fetch jobs")
@@ -350,6 +368,60 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* Pagination Controls */}
+      {jobs.length > 0 && pagination.total_pages > 1 && (
+        <div className="mt-6 flex items-center justify-between">
+          <div className="text-sm text-gray-700">
+            Showing {((pagination.page - 1) * pagination.per_page) + 1} to {Math.min(pagination.page * pagination.per_page, pagination.total)} of {pagination.total} jobs
+          </div>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => fetchJobs(userInfo, pagination.page - 1, pagination.per_page)}
+              disabled={!pagination.has_prev}
+              className={`px-3 py-1 text-sm rounded-md ${
+                pagination.has_prev
+                  ? 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                  : 'bg-gray-100 border border-gray-300 text-gray-400 cursor-not-allowed'
+              }`}
+            >
+              Previous
+            </button>
+            
+            {/* Page numbers */}
+            {Array.from({ length: Math.min(5, pagination.total_pages) }, (_, i) => {
+              const pageNum = Math.max(1, pagination.page - 2) + i;
+              if (pageNum > pagination.total_pages) return null;
+              
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => fetchJobs(userInfo, pageNum, pagination.per_page)}
+                  className={`px-3 py-1 text-sm rounded-md ${
+                    pageNum === pagination.page
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+            
+            <button
+              onClick={() => fetchJobs(userInfo, pagination.page + 1, pagination.per_page)}
+              disabled={!pagination.has_next}
+              className={`px-3 py-1 text-sm rounded-md ${
+                pagination.has_next
+                  ? 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                  : 'bg-gray-100 border border-gray-300 text-gray-400 cursor-not-allowed'
+              }`}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Empty State */}
       {jobs.length === 0 && (

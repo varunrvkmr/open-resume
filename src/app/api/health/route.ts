@@ -1,21 +1,31 @@
 import { NextResponse } from 'next/server';
-import { testConnection } from '../../../lib/database/connection';
 
 export async function GET() {
   try {
-    // Test database connection
-    const isDbConnected = await testConnection();
+    // Test backend connection
+    const backendUrl = process.env.BACKEND_URL || 'http://backend:5050';
+    let backendStatus = 'unknown';
+    
+    try {
+      const response = await fetch(`${backendUrl}/api/openresume/debug`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      backendStatus = response.ok ? 'connected' : 'error';
+    } catch (error) {
+      backendStatus = 'disconnected';
+    }
     
     return NextResponse.json({ 
-      status: isDbConnected ? 'healthy' : 'unhealthy',
+      status: backendStatus === 'connected' ? 'healthy' : 'unhealthy',
       timestamp: new Date().toISOString(),
       service: 'openresume',
       version: process.env.npm_package_version || '1.0.0',
-      database: isDbConnected ? 'connected' : 'disconnected',
+      backend: backendStatus,
       features: {
-        optimized_queries: true,
-        n1_query_fix: true,
-        dedicated_backend: true
+        proxy_to_backend: true,
+        no_direct_db: true,
+        clean_separation: true
       }
     });
   } catch (error) {
@@ -24,7 +34,7 @@ export async function GET() {
         status: 'unhealthy', 
         error: error instanceof Error ? error.message : 'Unknown error',
         timestamp: new Date().toISOString(),
-        database: 'error'
+        backend: 'error'
       },
       { status: 500 }
     );

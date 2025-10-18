@@ -83,6 +83,11 @@ export const ResumePDFBulletList = ({
   items: string[];
   showBulletPoints?: boolean;
 }) => {
+  // Safety check to prevent undefined items error
+  if (!items || !Array.isArray(items)) {
+    return null;
+  }
+
   return (
     <>
       {items.map((item, idx) => (

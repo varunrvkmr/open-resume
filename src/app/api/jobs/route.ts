@@ -1,32 +1,43 @@
 // openresume/src/app/api/jobs/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { JobService } from '../../../lib/services/jobService';
-import { testConnection } from '../../../lib/database/connection';
 
 export async function GET(request: NextRequest) {
   try {
-    // Test database connection
-    const isConnected = await testConnection();
-    if (!isConnected) {
-      throw new Error('Database connection failed');
-    }
-
-    // Get user email from query parameters
+    // Get user email and pagination parameters from query parameters
     const { searchParams } = new URL(request.url);
     const userEmail = searchParams.get('userEmail');
+    const page = searchParams.get('page') || '1';
+    const perPage = searchParams.get('per_page') || '10';
     
-    console.log('🔍 OpenResume API - userEmail:', userEmail);
+    console.log('🔍 OpenResume API - userEmail:', userEmail, 'page:', page, 'per_page:', perPage);
     
     if (!userEmail) {
       console.log('❌ No userEmail provided');
       return NextResponse.json({ error: 'userEmail parameter is required' }, { status: 400 });
     }
 
-    // Use optimized service to get jobs (fixes N+1 query problem)
-    const jobs = await JobService.getJobsForUser(userEmail);
-    console.log(`✅ Received ${jobs.length} jobs from optimized service`);
+    // Proxy request to backend with pagination parameters
+    const backendUrl = process.env.BACKEND_URL || 'http://backend:5050';
+    const backendResponse = await fetch(`${backendUrl}/api/openresume/jobs?userEmail=${encodeURIComponent(userEmail)}&page=${page}&per_page=${perPage}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!backendResponse.ok) {
+      const errorData = await backendResponse.json().catch(() => ({}));
+      console.error('❌ Backend API error:', errorData);
+      return NextResponse.json(
+        { error: 'Failed to fetch jobs from backend', details: errorData },
+        { status: backendResponse.status }
+      );
+    }
+
+    const response = await backendResponse.json();
+    console.log(`✅ Received ${response.jobs?.length || 0} jobs from backend (page ${response.pagination?.page || 1})`);
     
-    return NextResponse.json(jobs);
+    return NextResponse.json(response);
   } catch (error) {
     console.error('❌ Error in OpenResume API:', error);
     return NextResponse.json(

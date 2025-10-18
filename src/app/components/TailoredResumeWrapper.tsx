@@ -47,6 +47,86 @@ export const TailoredResumeWrapper = ({ children }: TailoredResumeWrapperProps) 
     }
   }, [isTailoredMode]);
 
+  const transformOpenResumeToRedux = (openResumeData: any) => {
+    console.log('🔄 Transforming OpenResume data:', openResumeData);
+    const basics = openResumeData.basics || {};
+    console.log('📋 Basics data:', basics);
+    
+    // Handle skills transformation - ensure it has the correct Redux structure
+    let skillsData = { featuredSkills: [], descriptions: [] };
+    if (openResumeData.skills) {
+      if (Array.isArray(openResumeData.skills)) {
+        // If skills is an array, convert to Redux format
+        skillsData = {
+          featuredSkills: openResumeData.skills.map((skill: any) => ({
+            skill: skill.skill || skill.name || skill,
+            rating: skill.rating || 4
+          })),
+          descriptions: []
+        };
+      } else if (openResumeData.skills.featuredSkills || openResumeData.skills.descriptions) {
+        // If it's already in Redux format, use it
+        skillsData = openResumeData.skills;
+      }
+    }
+    
+    // Handle custom transformation - ensure it has the correct Redux structure
+    let customData = { descriptions: [] };
+    if (openResumeData.custom) {
+      if (Array.isArray(openResumeData.custom)) {
+        customData = { descriptions: openResumeData.custom };
+      } else if (openResumeData.custom.descriptions) {
+        customData = openResumeData.custom;
+      }
+    }
+    
+    // Handle work experiences transformation
+    const workExperiences = (openResumeData.work || []).map((work: any) => ({
+      company: work.company || "",
+      jobTitle: work.position || work.jobTitle || "",
+      date: work.startDate || work.date || "",
+      descriptions: work.summary ? [work.summary] : (work.descriptions || [])
+    }));
+
+    // Handle education transformation
+    const educations = (openResumeData.education || []).map((edu: any) => ({
+      school: edu.institution || edu.school || "",
+      degree: edu.degree || "",
+      date: edu.date || "",
+      gpa: edu.gpa || "",
+      descriptions: edu.summary ? [edu.summary] : (edu.descriptions || [])
+    }));
+
+    // Handle projects transformation
+    const projects = (openResumeData.projects || []).map((project: any) => ({
+      project: project.name || project.project || "",
+      date: project.date || "",
+      descriptions: project.summary ? [project.summary] : (project.descriptions || [])
+    }));
+
+    const transformedData = {
+      profile: {
+        name: basics.name || "",
+        email: basics.email || "",
+        phone: basics.phone || "",
+        url: basics.url || "",
+        summary: basics.summary || "",
+        location: basics.location || ""
+      },
+      workExperiences: workExperiences,
+      educations: educations,
+      projects: projects,
+      skills: skillsData,
+      custom: customData
+    };
+    
+    console.log('✅ Transformed data:', transformedData);
+    console.log('📋 Transformed profile:', transformedData.profile);
+    console.log('📋 Transformed skills:', transformedData.skills);
+    console.log('📋 Transformed custom:', transformedData.custom);
+    return transformedData;
+  };
+
   const loadMasterResume = useCallback(async (user: any) => {
     try {
       console.log('📖 Loading master resume as fallback');
@@ -62,7 +142,9 @@ export const TailoredResumeWrapper = ({ children }: TailoredResumeWrapperProps) 
         console.log('✅ Master resume loaded:', result);
         
         if (result.resume_data) {
-          const safeData = ensureProfileExists(result.resume_data);
+          // Transform OpenResume format to Redux format
+          const transformedData = transformOpenResumeToRedux(result.resume_data);
+          const safeData = ensureProfileExists(transformedData);
           dispatch(setResume(safeData));
         }
       }
@@ -88,7 +170,9 @@ export const TailoredResumeWrapper = ({ children }: TailoredResumeWrapperProps) 
         
         // Load the tailored resume data into Redux store
         if (result.resume_data) {
-          const safeData = ensureProfileExists(result.resume_data);
+          // Transform OpenResume format to Redux format
+          const transformedData = transformOpenResumeToRedux(result.resume_data);
+          const safeData = ensureProfileExists(transformedData);
           dispatch(setResume(safeData));
         }
       } else if (response.status === 404) {
@@ -124,7 +208,9 @@ export const TailoredResumeWrapper = ({ children }: TailoredResumeWrapperProps) 
         
         // Load the resume data into Redux store
         if (result.resume_data) {
-          const safeData = ensureProfileExists(result.resume_data);
+          // Transform OpenResume format to Redux format
+          const transformedData = transformOpenResumeToRedux(result.resume_data);
+          const safeData = ensureProfileExists(transformedData);
           dispatch(setResume(safeData));
         }
       } else if (response.status === 404) {
@@ -219,6 +305,26 @@ export const TailoredResumeWrapper = ({ children }: TailoredResumeWrapperProps) 
       setSaving(true);
       console.log('💾 Saving tailored resume for job:', jobId);
 
+      // Transform Redux format to OpenResume format for API
+      const profile = resume.profile || {};
+      const openResumeData = {
+        basics: {
+          name: profile.name || "",
+          email: profile.email || "",
+          phone: profile.phone || "",
+          url: profile.url || "",
+          summary: profile.summary || "",
+          location: profile.location || ""
+        },
+        work: resume.workExperiences,
+        education: resume.educations,
+        projects: resume.projects,
+        skills: resume.skills,
+        custom: resume.custom
+      };
+
+      console.log('🔄 Transformed resume data for API:', openResumeData);
+
       const response = await fetch('/api/tailored-resume', {
         method: 'POST',
         headers: {
@@ -227,7 +333,7 @@ export const TailoredResumeWrapper = ({ children }: TailoredResumeWrapperProps) 
         body: JSON.stringify({
           userEmail: userInfo.email,
           jobId: jobId,
-          resumeData: resume
+          resumeData: openResumeData
         }),
       });
 

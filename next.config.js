@@ -12,6 +12,7 @@ const nextConfig = {
     // https://webpack.js.org/configuration/resolve/#resolvealias
     config.resolve.alias.canvas = false;
     config.resolve.alias.encoding = false;
+    
     return config;
   },
 };
