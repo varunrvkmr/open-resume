@@ -4,6 +4,8 @@ import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "lib/redux/store";
 import { setResume, ensureProfileExists } from "lib/redux/resumeSlice";
 import { useSaveStateToLocalStorageOnChange } from "lib/redux/hooks";
+import { AICustomizationPanel } from "./AICustomizationPanel";
+import { SparklesIcon } from "@heroicons/react/24/outline";
 
 interface TailoredResumeWrapperProps {
   children: React.ReactNode;
@@ -19,6 +21,8 @@ export const TailoredResumeWrapper = ({ children }: TailoredResumeWrapperProps) 
   const [savedAsMaster, setSavedAsMaster] = useState(false);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [showAIPanel, setShowAIPanel] = useState(false);
+  const [currentResumeVersionId, setCurrentResumeVersionId] = useState<number | null>(null);
   
   const resume = useSelector((state: RootState) => state.resume);
   const dispatch = useDispatch();
@@ -169,6 +173,14 @@ export const TailoredResumeWrapper = ({ children }: TailoredResumeWrapperProps) 
         const result = await response.json();
         console.log('✅ Tailored resume loaded:', result);
         
+        // Set the resume version ID for AI customization
+        if (result.resume_version_id) {
+          console.log('🔧 Setting currentResumeVersionId to:', result.resume_version_id);
+          setCurrentResumeVersionId(result.resume_version_id);
+        } else {
+          console.log('⚠️ No resume_version_id in result:', result);
+        }
+        
         // Load the tailored resume data into Redux store
         if (result.resume_data) {
           // Transform OpenResume format to Redux format
@@ -206,6 +218,11 @@ export const TailoredResumeWrapper = ({ children }: TailoredResumeWrapperProps) 
       if (response.ok) {
         const result = await response.json();
         console.log('✅ Resume loaded by ID:', result);
+        
+        // Set the resume version ID for AI customization
+        if (result.resume_version_id) {
+          setCurrentResumeVersionId(result.resume_version_id);
+        }
         
         // Load the resume data into Redux store
         if (result.resume_data) {
@@ -469,7 +486,7 @@ export const TailoredResumeWrapper = ({ children }: TailoredResumeWrapperProps) 
           console.error('❌ Failed to parse error response:', parseError);
           errorData = { error: `Server error (${response.status}): ${response.statusText}` };
         }
-        throw new Error(errorData.error || 'Failed to delete tailored resume');
+        throw new Error((errorData as any).error || 'Failed to delete tailored resume');
       }
 
       const result = await response.json();
@@ -486,6 +503,19 @@ export const TailoredResumeWrapper = ({ children }: TailoredResumeWrapperProps) 
       setDeleting(false);
     }
   };
+
+  const handleResumeUpdated = useCallback(async (newResumeVersionId: number) => {
+    setCurrentResumeVersionId(newResumeVersionId);
+    console.log('Resume updated with new version ID:', newResumeVersionId);
+
+    if (userInfo) {
+      try {
+        await loadResumeById(userInfo, String(newResumeVersionId));
+      } catch (error) {
+        console.error('Failed to reload resume after AI update:', error);
+      }
+    }
+  }, [userInfo, loadResumeById]);
 
   if (loading) {
     return (
@@ -505,6 +535,15 @@ export const TailoredResumeWrapper = ({ children }: TailoredResumeWrapperProps) 
       <div className="bg-blue-600 text-white px-4 py-2 text-center">
         <div className="flex items-center justify-center gap-4">
           <span className="font-semibold">🎯 Tailored Resume Mode</span>
+          <button
+            onClick={() => setShowAIPanel(true)}
+            disabled={false} // Temporarily enabled for testing
+            className="flex items-center gap-2 px-4 py-1 rounded-md text-sm font-medium bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700"
+            title="Customize with AI analysis and suggestions"
+          >
+            <SparklesIcon className="w-4 h-4" />
+            Customize with AI
+          </button>
           <button
             onClick={saveTailoredResume}
             disabled={saving}
@@ -552,7 +591,30 @@ export const TailoredResumeWrapper = ({ children }: TailoredResumeWrapperProps) 
         </p>
       </div>
       
-      {children}
+      {/* Main Content with Side Panel Support */}
+      <div className={`flex transition-all duration-300 ${showAIPanel ? 'mr-96' : ''}`}>
+        <div className="flex-1">
+          {children}
+        </div>
+      </div>
+
+      {/* AI Customization Panel */}
+      {showAIPanel && jobId && (
+        <AICustomizationPanel
+          isOpen={showAIPanel}
+          onClose={() => setShowAIPanel(false)}
+          resumeVersionId={currentResumeVersionId || 1} // Fallback for testing
+          jobId={parseInt(jobId)}
+          onResumeUpdated={handleResumeUpdated}
+        />
+      )}
+      
+      {/* Debug info */}
+      {showAIPanel && (
+        <div className="fixed bottom-4 left-4 bg-black text-white p-2 rounded text-xs z-50">
+          Debug: currentResumeVersionId = {currentResumeVersionId}, jobId = {jobId}
+        </div>
+      )}
     </div>
   );
 };
